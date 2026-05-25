@@ -5,7 +5,10 @@ use std::{
 
 use anyhow::Result;
 use async_trait::async_trait;
-use identity::traits::muxer::IMuxedStream;
+use identity::{
+    events::{FloodsubEvent, FloodsubMsgType, GlobalEvent},
+    traits::muxer::IMuxedStream,
+};
 use identity::{peer::PeerInfo, traits::core::IProtocolHandler};
 use prost::Message as ProstMessage;
 use schema::floodsub::{rpc::SubOpts, Message, Rpc};
@@ -25,12 +28,13 @@ use crate::{
 
 pub type LastSeenCache = HashMap<MessageKey, u64>;
 pub type FloodsubPayload = (Option<String>, Option<Vec<String>>, Option<Vec<u8>>);
+pub type SubscrbedTopicApi = HashMap<String, Sender<(Vec<u8>, Vec<u8>)>>;
 
 #[derive(Debug, Clone)]
 pub struct FloosubStore {
     peer_topics: HashMap<String, Vec<String>>,
     peers: HashMap<String, Sender<Vec<u8>>>,
-    subscribed_topic_api: HashMap<String, Sender<Vec<u8>>>,
+    subscribed_topic_api: SubscrbedTopicApi,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -45,6 +49,7 @@ pub struct FloodSub {
     pub floodsub_mpsc_tx: Sender<Vec<u8>>,
     last_seen_cache: Arc<Mutex<LastSeenCache>>,
     pub floodsub_store: Arc<Mutex<FloosubStore>>,
+    pub global_event_tx: Sender<Vec<u8>>,
 }
 
 #[async_trait]
@@ -102,7 +107,7 @@ impl IProtocolHandler for FloodSub {
 }
 
 impl FloodSub {
-    pub async fn new(local_peer: &PeerInfo) -> Result<Arc<Self>> {
+    pub async fn new(local_peer: &PeerInfo, global_event_tx: Sender<Vec<u8>>) -> Result<Arc<Self>> {
         let (floodsub_mpsc_tx, floodsub_mpsc_rx) = mpsc::channel::<Vec<u8>>(300);
         let last_seen_cache = Arc::new(Mutex::new(HashMap::new()));
         let local_peer_info = local_peer.clone();
@@ -116,6 +121,7 @@ impl FloodSub {
                 peers: HashMap::new(),
                 subscribed_topic_api: HashMap::new(),
             })),
+            global_event_tx,
         });
 
         tokio::spawn(async move {
@@ -161,7 +167,6 @@ impl FloodSub {
                                 topic_ids: opt_vec_pld.unwrap(),
                             };
 
-                            warn!("About to publish: floodsub");
                             self.publish(self.local_peer_info.clone().peer_id, pub_msg).await.unwrap();
                         }
                     }
@@ -219,13 +224,26 @@ impl FloodSub {
             return Ok(());
         }
 
-        debug!("Subscribing to topic: {}", topic_id);
+        // Send out a global event, for subscribing to a new topic
+        let floosub_event = GlobalEvent::Floodsub(FloodsubEvent {
+            msg_type: FloodsubMsgType::Subscribe,
+            source: None,
+            msg: None,
+            topic: topic_id.clone(),
+        });
 
-        let (topic_mpsc_tx, topic_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
+        self.global_event_tx
+            .send(bincode::serialize(&floosub_event).unwrap())
+            .await
+            .unwrap();
+        // ---------------------------------------------------------
+
+        let (topic_mpsc_tx, topic_mpsc_rx) = mpsc::channel::<(Vec<u8>, Vec<u8>)>(100);
         let mut sub_api = SubscriptionAPI::new(
             topic_id.clone(),
             self.floodsub_mpsc_tx.clone(),
             topic_mpsc_rx,
+            self.global_event_tx.clone(),
         );
 
         {
@@ -273,7 +291,19 @@ impl FloodSub {
                 return Ok(());
             }
 
-            debug!("Unsubscribing from topic: {}", topic_id);
+            // Send out a global event, for unsubscribing to a new topic
+            let floosub_event = GlobalEvent::Floodsub(FloodsubEvent {
+                msg_type: FloodsubMsgType::Unsubscribe,
+                source: None,
+                msg: None,
+                topic: topic_id.clone(),
+            });
+
+            self.global_event_tx
+                .send(bincode::serialize(&floosub_event).unwrap())
+                .await
+                .unwrap();
+            // ---------------------------------------------------------
 
             {
                 let mut store = self.floodsub_store.lock().await;
@@ -355,7 +385,7 @@ impl FloodSub {
         };
 
         topic_mpsc_tx
-            .send(pubsub_msg.data().to_vec())
+            .send((pubsub_msg.data().to_vec(), pubsub_msg.from().to_vec()))
             .await
             .unwrap();
 

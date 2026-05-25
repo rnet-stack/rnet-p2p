@@ -5,26 +5,28 @@ use std::{
 
 use anyhow::{Error, Result};
 use async_trait::async_trait;
-use identity::traits::{core::IProtocolHandler, muxer::IMuxedStream};
-use tokio::{sync::Mutex, time::timeout};
+use identity::{
+    events::{GlobalEvent, PingEvent},
+    traits::{core::IProtocolHandler, muxer::IMuxedStream},
+};
+use tokio::{
+    sync::{mpsc::Sender, Mutex},
+    time::timeout,
+};
 use tracing::{debug, error, warn};
 
 const PING_LENGTH: usize = 32;
 
-pub struct PingEvent {
-    pub is_initiator: bool,
-    pub rtts: Vec<u128>,
-    pub remote_peer_id: String,
-}
-
 pub struct Ping {
     pub count: Arc<Mutex<u32>>,
+    global_event_tx: Sender<Vec<u8>>,
 }
 
 impl Ping {
-    pub fn new(count: Option<u32>) -> Self {
+    pub fn new(count: Option<u32>, global_event_tx: Sender<Vec<u8>>) -> Self {
         Ping {
             count: Arc::new(Mutex::new(count.unwrap_or(5))),
+            global_event_tx,
         }
     }
 
@@ -94,7 +96,16 @@ impl Ping {
                     match self.ping(stream).await {
                         Err(e) => error!("Error in ping sequence: {}, {}", e, peer_id),
                         Ok(rtt) => {
-                            debug!("Ping rtt exchange: RTT = [{}]μs", rtt)
+                            let ping_event = GlobalEvent::Ping(PingEvent {
+                                remote: stream.get_peer_id(),
+                                rtts: vec![rtt],
+                                count: 1,
+                            });
+
+                            self.global_event_tx
+                                .send(bincode::serialize(&ping_event).unwrap())
+                                .await
+                                .unwrap();
                         }
                     }
                     tokio::time::sleep(Duration::from_millis(1000)).await;
@@ -144,12 +155,16 @@ impl Ping {
                     }
                 }
 
-                debug!(
-                    "Ping completed with {} RTT samples from {}:\n{:?}μs",
-                    rtts.len(),
-                    stream.get_peer_id(),
-                    rtts
-                );
+                let ping_event = GlobalEvent::Ping(PingEvent {
+                    remote: stream.get_peer_id(),
+                    count: rtts.len() as u128,
+                    rtts: rtts.clone(),
+                });
+
+                self.global_event_tx
+                    .send(bincode::serialize(&ping_event).unwrap())
+                    .await
+                    .unwrap();
             }
             false => {
                 let count_buf = stream.read().await.unwrap();

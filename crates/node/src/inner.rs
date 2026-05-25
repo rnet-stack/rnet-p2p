@@ -106,6 +106,7 @@ impl NodeInner {
             keypair.clone(),
             handlers.clone(),
             local_peer_info.clone(),
+            global_event_tx.clone(),
         ));
 
         info!("Node listening on: {}", listen_addr.to_string());

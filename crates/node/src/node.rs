@@ -32,6 +32,7 @@ pub struct Node {
     pub key_pair: RsaKeyPair,
     pub mpsc_tx: Sender<Vec<u8>>,
     pub handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
+    pub global_event_tx: Sender<Vec<u8>>,
 
     // Protocols
     pub floodsub: Arc<Mutex<Option<Arc<FloodSub>>>>,
@@ -44,12 +45,14 @@ impl Node {
         key_pair: RsaKeyPair,
         handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
         local_peer_info: PeerInfo,
+        global_event_tx: Sender<Vec<u8>>,
     ) -> Self {
         Node {
             local_peer_info,
             key_pair,
             mpsc_tx,
             handlers,
+            global_event_tx,
 
             floodsub: Arc::new(Mutex::new(None)),
             ping: Arc::new(Mutex::new(None)),
@@ -120,7 +123,9 @@ impl Node {
                         warn!("Floodsub already running!!")
                     }
                     None => {
-                        let floodsub = FloodSub::new(local_peer).await.unwrap();
+                        let floodsub = FloodSub::new(local_peer, self.global_event_tx.clone())
+                            .await
+                            .unwrap();
                         self.set_stream_handler(FLOODSUB, Box::new(floodsub.clone()))
                             .await
                             .unwrap();
@@ -139,7 +144,7 @@ impl Node {
                         warn!("Ping already running!!");
                     }
                     None => {
-                        let ping = Arc::new(Ping::new(None));
+                        let ping = Arc::new(Ping::new(None, self.global_event_tx.clone()));
                         self.set_stream_handler(PING, Box::new(ping.clone()))
                             .await
                             .unwrap();
@@ -189,7 +194,6 @@ impl INodeFloodsubAPI for Node {
         match self.floodsub_is_running().await {
             false => warn!("Floodsub not running!!"),
             true => {
-                warn!("FLOODSUB publishing");
                 let floodsub_guard = self.floodsub.lock().await;
                 let floodsub = floodsub_guard.as_ref().unwrap();
 
@@ -201,7 +205,6 @@ impl INodeFloodsubAPI for Node {
                 );
 
                 floodsub.floodsub_mpsc_tx.send(frame).await.unwrap();
-                warn!("FLOODSUB published");
             }
         }
 

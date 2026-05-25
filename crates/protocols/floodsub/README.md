@@ -77,3 +77,6 @@ This FloodSub implementation is suitable for:
 - prototyping higher-level pubsub APIs
 
 It is not suitable for adversarial or large-scale production environments without significant extension.
+
+
+global_event_tx: UNSUBSCRIBE + SUBSCRIBE + RECV_MSG

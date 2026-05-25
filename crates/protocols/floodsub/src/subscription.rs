@@ -1,4 +1,5 @@
 use anyhow::Result;
+use identity::events::{FloodsubEvent, FloodsubMsgType, GlobalEvent};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tracing::debug;
 
@@ -8,19 +9,22 @@ use crate::pubsub::FloodsubPayload;
 pub struct SubscriptionAPI {
     pub topic_id: String,
     floodsub_mpsc_tx: Sender<Vec<u8>>,
-    topic_mpsc_rx: Receiver<Vec<u8>>,
+    topic_mpsc_rx: Receiver<(Vec<u8>, Vec<u8>)>,
+    global_event_tx: Sender<Vec<u8>>,
 }
 
 impl SubscriptionAPI {
     pub fn new(
         topic_id: String,
         floodsub_mpsc_tx: Sender<Vec<u8>>,
-        topic_mpsc_rx: Receiver<Vec<u8>>,
+        topic_mpsc_rx: Receiver<(Vec<u8>, Vec<u8>)>,
+        global_event_tx: Sender<Vec<u8>>,
     ) -> Self {
         SubscriptionAPI {
             topic_id,
             floodsub_mpsc_tx,
             topic_mpsc_rx,
+            global_event_tx,
         }
     }
 
@@ -48,20 +52,32 @@ impl SubscriptionAPI {
         Ok(())
     }
 
-    pub async fn recv(&mut self) -> Option<Vec<u8>> {
+    pub async fn recv(&mut self) -> Option<(Vec<u8>, Vec<u8>)> {
         self.topic_mpsc_rx.recv().await
     }
 
     pub async fn receive_loop(&mut self) {
         let topic = self.topic_id.clone();
-        debug!("[{}]: Receiver loop started", topic);
 
         // TODO: send global event from here
         loop {
             match self.recv().await {
-                Some(payload) => {
-                    let msg = String::from_utf8_lossy(&payload).to_string();
-                    println!("[{}]: {}", topic, msg);
+                Some((payload, source_peer)) => {
+                    // let msg = String::from_utf8_lossy(&payload).to_string();
+                    let source_peer_id = String::from_utf8_lossy(&source_peer).to_string();
+                    // let fsub_msg = format!("[{topic}] - [{source_peer_id}]: {msg}");
+
+                    let floosub_event = GlobalEvent::Floodsub(FloodsubEvent {
+                        msg_type: FloodsubMsgType::Publish,
+                        source: Some(source_peer_id),
+                        msg: Some(payload),
+                        topic: topic.clone(),
+                    });
+
+                    self.global_event_tx
+                        .send(bincode::serialize(&floosub_event).unwrap())
+                        .await
+                        .unwrap();
                 }
                 None => {
                     debug!("[{}]: Receiver loop ended", topic);
