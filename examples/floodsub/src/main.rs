@@ -1,8 +1,11 @@
 mod cli;
 
+use std::time::Duration;
+
 use anyhow::Result;
 use identity::multiaddr::Multiaddr;
 use node::{inner::NodeInner, protocol::InnerProtocolOpt};
+use tokio::sync::mpsc::Receiver;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -27,8 +30,25 @@ async fn main() -> Result<()> {
     .await
     .unwrap();
 
+    tokio::spawn(async move {
+        global_notification_receiver(_global_rx).await.unwrap();
+    });
+
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
     info!("Run in new terminal: \ncargo run --bin floodsub --release");
     cli_loop(host_mpsc_tx).await.unwrap();
 
     Ok(())
+}
+
+async fn global_notification_receiver(mut global_event_rx: Receiver<Vec<u8>>) -> Result<()> {
+    info!("Global notification receiver initiated");
+
+    loop {
+        let notification = global_event_rx.recv().await.unwrap();
+        let msg = String::from_utf8_lossy(&notification).to_string();
+
+        info!("{}", msg);
+    }
 }
