@@ -1,4 +1,5 @@
 use anyhow::Result;
+use identity::events::{FloodsubEvent, FloodsubMsgType, GlobalEvent};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tracing::debug;
 
@@ -62,15 +63,21 @@ impl SubscriptionAPI {
         loop {
             match self.recv().await {
                 Some((payload, source_peer)) => {
-                    let msg = String::from_utf8_lossy(&payload).to_string();
+                    // let msg = String::from_utf8_lossy(&payload).to_string();
                     let source_peer_id = String::from_utf8_lossy(&source_peer).to_string();
-                    let fsub_msg = format!("[{topic}] - [{source_peer_id}]: {msg}");
-                    
+                    // let fsub_msg = format!("[{topic}] - [{source_peer_id}]: {msg}");
+
+                    let floosub_event = GlobalEvent::Floodsub(FloodsubEvent {
+                        msg_type: FloodsubMsgType::Publish,
+                        source: Some(source_peer_id),
+                        msg: Some(payload),
+                        topic: topic.clone(),
+                    });
+
                     self.global_event_tx
-                        .send(fsub_msg.as_bytes().to_vec())
+                        .send(bincode::serialize(&floosub_event).unwrap())
                         .await
                         .unwrap();
-
                 }
                 None => {
                     debug!("[{}]: Receiver loop ended", topic);

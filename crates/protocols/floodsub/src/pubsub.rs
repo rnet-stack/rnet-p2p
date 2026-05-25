@@ -5,7 +5,10 @@ use std::{
 
 use anyhow::Result;
 use async_trait::async_trait;
-use identity::traits::muxer::IMuxedStream;
+use identity::{
+    events::{FloodsubEvent, FloodsubMsgType, GlobalEvent},
+    traits::muxer::IMuxedStream,
+};
 use identity::{peer::PeerInfo, traits::core::IProtocolHandler};
 use prost::Message as ProstMessage;
 use schema::floodsub::{rpc::SubOpts, Message, Rpc};
@@ -220,11 +223,19 @@ impl FloodSub {
             return Ok(());
         }
 
-        let subscribe_msg = format!("Subscribing to topic: {topic_id}");
+        // Send out a global event, for subscribing to a new topic
+        let floosub_event = GlobalEvent::Floodsub(FloodsubEvent {
+            msg_type: FloodsubMsgType::Subscribe,
+            source: None,
+            msg: None,
+            topic: topic_id.clone(),
+        });
+
         self.global_event_tx
-            .send(subscribe_msg.as_bytes().to_vec())
+            .send(bincode::serialize(&floosub_event).unwrap())
             .await
             .unwrap();
+        // ---------------------------------------------------------
 
         let (topic_mpsc_tx, topic_mpsc_rx) = mpsc::channel::<(Vec<u8>, Vec<u8>)>(100);
         let mut sub_api = SubscriptionAPI::new(
@@ -279,11 +290,19 @@ impl FloodSub {
                 return Ok(());
             }
 
-            let unsubscribe_msg = format!("Unsubscribing from topic: {topic_id}");
+            // Send out a global event, for unsubscribing to a new topic
+            let floosub_event = GlobalEvent::Floodsub(FloodsubEvent {
+                msg_type: FloodsubMsgType::Unsubscribe,
+                source: None,
+                msg: None,
+                topic: topic_id.clone(),
+            });
+
             self.global_event_tx
-                .send(unsubscribe_msg.as_bytes().to_vec())
+                .send(bincode::serialize(&floosub_event).unwrap())
                 .await
                 .unwrap();
+            // ---------------------------------------------------------
 
             {
                 let mut store = self.floodsub_store.lock().await;

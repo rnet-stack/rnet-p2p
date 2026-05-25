@@ -144,7 +144,7 @@ impl Node {
                         warn!("Ping already running!!");
                     }
                     None => {
-                        let ping = Arc::new(Ping::new(None));
+                        let ping = Arc::new(Ping::new(None, self.global_event_tx.clone()));
                         self.set_stream_handler(PING, Box::new(ping.clone()))
                             .await
                             .unwrap();

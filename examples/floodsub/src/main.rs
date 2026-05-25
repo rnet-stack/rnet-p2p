@@ -3,7 +3,10 @@ mod cli;
 use std::time::Duration;
 
 use anyhow::Result;
-use identity::multiaddr::Multiaddr;
+use identity::{
+    events::{FloodsubMsgType, GlobalEvent},
+    multiaddr::Multiaddr,
+};
 use node::{inner::NodeInner, protocol::InnerProtocolOpt};
 use tokio::sync::mpsc::Receiver;
 use tracing::info;
@@ -47,8 +50,22 @@ async fn global_notification_receiver(mut global_event_rx: Receiver<Vec<u8>>) ->
 
     loop {
         let notification = global_event_rx.recv().await.unwrap();
-        let msg = String::from_utf8_lossy(&notification).to_string();
+        let decoded = bincode::deserialize::<GlobalEvent>(&notification).unwrap();
+        match decoded {
+            GlobalEvent::Floodsub(event) => {
+                let original = event.clone();
 
-        info!("{}", msg);
+                match event.msg_type {
+                    FloodsubMsgType::Publish => {
+                        let msg = String::from_utf8_lossy(&event.msg.unwrap()).to_string();
+                        let topic = event.topic;
+                        let source = event.source.unwrap();
+                        info!("FloodsubEvent: {topic} - {source}: {msg}");
+                    }
+                    _ => info!("{:?}", original),
+                }
+            }
+            GlobalEvent::Ping(event) => info!("{:?}", event),
+        }
     }
 }
