@@ -28,12 +28,13 @@ use crate::{
 
 pub type LastSeenCache = HashMap<MessageKey, u64>;
 pub type FloodsubPayload = (Option<String>, Option<Vec<String>>, Option<Vec<u8>>);
+pub type SubscrbedTopicApi = HashMap<String, Sender<(Vec<u8>, Vec<u8>)>>;
 
 #[derive(Debug, Clone)]
 pub struct FloosubStore {
     peer_topics: HashMap<String, Vec<String>>,
     peers: HashMap<String, Sender<Vec<u8>>>,
-    subscribed_topic_api: HashMap<String, Sender<(Vec<u8>, Vec<u8>)>>,
+    subscribed_topic_api: SubscrbedTopicApi,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
