@@ -1,3 +1,6 @@
+- drop 25% of all packets on loopback: `sudo tc qdisc add dev lo root netem loss 25%`
+- restore the network config: `sudo tc qdisc del dev lo root`
+
 - `tokio::time::sleep(Duration<_>)`, only suspends the async task/future that hits this line, and `std::thread::sleep(Duration<_>)`, suspends the whole main thread.
 
 - In `Udp`, if a 3000 bytes packets is in arrival, and split into fragments. then all fragments must arrive, if even one fragment is lost, then the entire packet is lost.

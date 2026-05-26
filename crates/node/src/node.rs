@@ -6,7 +6,7 @@ use floodsub::{
 use identity::{
     keys::rsa::RsaKeyPair,
     multiaddr::Multiaddr,
-    peer::PeerInfo,
+    peer::{PeerData, PeerInfo},
     traits::protocols::{INodeFloodsubAPI, INodePingAPI},
 };
 
@@ -16,7 +16,7 @@ use tokio::sync::{mpsc::Sender, Mutex};
 
 use anyhow::{Error, Result};
 use identity::traits::core::INode;
-use std::{collections::HashMap, result::Result::Ok, sync::Arc};
+use std::{collections::HashMap, result::Result::Ok, sync::Arc, time::Duration};
 use tracing::{info, warn};
 
 use crate::{
@@ -33,6 +33,7 @@ pub struct Node {
     pub mpsc_tx: Sender<Vec<u8>>,
     pub handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
     pub global_event_tx: Sender<Vec<u8>>,
+    pub peerstore: Arc<Mutex<PeerData>>,
 
     // Protocols
     pub floodsub: Arc<Mutex<Option<Arc<FloodSub>>>>,
@@ -44,6 +45,7 @@ impl Node {
         mpsc_tx: Sender<Vec<u8>>,
         key_pair: RsaKeyPair,
         handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
+        peerstore: Arc<Mutex<PeerData>>,
         local_peer_info: PeerInfo,
         global_event_tx: Sender<Vec<u8>>,
     ) -> Self {
@@ -53,6 +55,7 @@ impl Node {
             mpsc_tx,
             handlers,
             global_event_tx,
+            peerstore,
 
             floodsub: Arc::new(Mutex::new(None)),
             ping: Arc::new(Mutex::new(None)),
@@ -98,6 +101,23 @@ impl Node {
         self.local_peer_info.clone()
     }
 
+    pub async fn get_addr(&self, peer_id: &String) -> Multiaddr {
+        let peerstore = self.peerstore.lock().await;
+        let peerinfo = peerstore.peer_store.get(peer_id).expect("Peer not found");
+
+        Multiaddr::new(&peerinfo.listen_addr).unwrap()
+    }
+
+    pub async fn get_peers(&self) -> Vec<Multiaddr> {
+        let peerstore = self.peerstore.lock().await;
+
+        peerstore
+            .peer_store
+            .values()
+            .filter_map(|peerinfo| Multiaddr::new(&peerinfo.listen_addr).ok())
+            .collect()
+    }
+
     pub async fn set_stream_handler(
         &self,
         protocol: &str,
@@ -136,7 +156,7 @@ impl Node {
                 }
             }
 
-            InnerProtocolOpt::Ping => {
+            InnerProtocolOpt::Ping { enable_rlnc } => {
                 let mut ping_guard = self.ping.lock().await;
 
                 match &*ping_guard {
@@ -144,7 +164,8 @@ impl Node {
                         warn!("Ping already running!!");
                     }
                     None => {
-                        let ping = Arc::new(Ping::new(None, self.global_event_tx.clone()));
+                        let ping =
+                            Arc::new(Ping::new(None, self.global_event_tx.clone(), enable_rlnc));
                         self.set_stream_handler(PING, Box::new(ping.clone()))
                             .await
                             .unwrap();
@@ -208,6 +229,9 @@ impl INodeFloodsubAPI for Node {
             }
         }
 
+        // Some jitter after each publish
+        tokio::time::sleep(Duration::from_millis(400)).await;
+
         Ok(())
     }
 
@@ -224,45 +248,35 @@ impl INodeFloodsubAPI for Node {
         }
     }
 
-    async fn floodsub_topics(&self) -> Result<()> {
+    async fn floodsub_topics(&self) -> Option<Vec<String>> {
         match self.floodsub_is_running().await {
             false => warn!("Floodsub not running!!"),
             true => {
                 let floodsub_guard = self.floodsub.lock().await;
                 let floodsub = floodsub_guard.as_ref().unwrap();
 
-                match floodsub.get_subscribed_topics().await {
-                    Some(topics) => println!("{:?}", topics),
-                    None => println!("None"),
-                }
+                return floodsub.get_subscribed_topics().await;
             }
         }
 
-        Ok(())
+        None
     }
 
-    async fn floodsub_peers(&self) -> Result<()> {
+    async fn floodsub_peers(&self) -> Option<Vec<String>> {
         match self.floodsub_is_running().await {
             false => warn!("Floodsub not running!!"),
             true => {
                 let floodsub_guard = self.floodsub.lock().await;
                 let floodsub = floodsub_guard.as_ref().unwrap();
 
-                match floodsub.get_connected_peers().await {
-                    Some(peers) => {
-                        for peer in peers {
-                            println!("{}", peer);
-                        }
-                    }
-                    None => println!("None"),
-                }
+                return floodsub.get_connected_peers().await;
             }
         }
 
-        Ok(())
+        None
     }
 
-    async fn floodsub_mesh(&self) -> Result<()> {
+    async fn floodsub_mesh(&self) -> Option<HashMap<String, Vec<String>>> {
         match self.floodsub_is_running().await {
             false => warn!("Floodsub not running!!"),
             true => {
@@ -270,19 +284,23 @@ impl INodeFloodsubAPI for Node {
                 let floodsub = floodsub_guard.as_ref().unwrap();
 
                 let mesh = floodsub.get_floodsub_mesh().await;
-                match mesh.is_empty() {
-                    true => println!("None"),
+                let mut mapped_mesh = HashMap::new();
 
-                    false => {
-                        for (topic, peers) in mesh {
-                            println!("[{}] => {:?}", topic, peers);
-                        }
+                for (topic, peers) in mesh {
+                    let mut peer_addrs = Vec::new();
+
+                    for peer in peers {
+                        peer_addrs.push(self.get_addr(&peer).await.to_string());
                     }
+
+                    mapped_mesh.insert(topic, peer_addrs);
                 }
+
+                return Some(mapped_mesh);
             }
         }
 
-        Ok(())
+        None
     }
 }
 

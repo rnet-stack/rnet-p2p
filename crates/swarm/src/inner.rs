@@ -7,7 +7,7 @@ use crate::{
 };
 use anyhow::Result;
 use identity::{
-    multiaddr::{Multiaddr, Protocol},
+    multiaddr::Multiaddr,
     peer::{PeerData, PeerInfo},
     traits::{
         core::{IMultistream, IProtocolHandler, IRawConnection, IReadWriteClose, ISwarm},
@@ -41,6 +41,8 @@ pub struct SwarmInner {
     handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
     pub swarm_mpsc_tx: Arc<dyn ISwarm + Send + Sync + 'static>,
     pub global_event_tx: Sender<Vec<u8>>,
+    /// liveliness check over udp transport
+    pub ping_check_opt: bool,
 }
 
 // get_peer_id
@@ -64,6 +66,7 @@ impl SwarmInner {
         peer_id: String,
         handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
         global_event_tx: Sender<Vec<u8>>,
+        ping_check_opt: bool,
     ) -> Result<(Arc<Swarm>, Arc<Mutex<PeerData>>, PeerInfo)> {
         // create transport
         // update the actual listen ip
@@ -85,7 +88,6 @@ impl SwarmInner {
         listen_addr
             .replace_value_for_protocol(transport_opt, parts[1])
             .unwrap();
-        listen_addr.push_proto(Protocol::P2P(peer_id.clone()));
 
         // Create the peerstore
         let local_peer_info = PeerInfo {
@@ -113,6 +115,7 @@ impl SwarmInner {
             handlers,
             swarm_mpsc_tx: swarm_mpsc_tx.clone(),
             global_event_tx,
+            ping_check_opt,
         });
 
         tokio::spawn(async move {
@@ -222,9 +225,15 @@ impl SwarmInner {
 
     async fn new_stream(&self, maddr: &Multiaddr, protocols: Vec<String>) {
         let peer_id = maddr.value_for_protocol("p2p").unwrap();
-        if !self.is_peer_connected(&peer_id).await {
-            warn!("Making a connection first: {}", peer_id);
-            self.connect(maddr).await.unwrap();
+
+        match self.is_peer_connected(&peer_id).await {
+            true => {
+                warn!("Peer already connected: {}", peer_id);
+            }
+            false => {
+                warn!("Making a connection first: {peer_id}");
+                self.connect(maddr).await.unwrap();
+            }
         }
 
         // fetch the muxed_conn instance
@@ -270,6 +279,7 @@ impl SwarmInner {
                 remote_peer,
                 self.handlers.clone(),
                 self.global_event_tx.clone(),
+                self.ping_check_opt,
             )
             .await
     }

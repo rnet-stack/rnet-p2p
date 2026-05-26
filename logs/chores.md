@@ -1,4 +1,6 @@
 - [ ]
+- [ ] collected liveliness checks for all udp-peers, instead of one-one.
+- [ ] create a proper struct from floodsub mesh, before returning it.
 - [ ] implement a liveliness checkup utiltiy for udp connections
 - [ ] figure out the duplicacy of headers in `node` and `swarm`
 - [x] upgrade the crate placements 

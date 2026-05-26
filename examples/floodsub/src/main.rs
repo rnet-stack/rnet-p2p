@@ -1,6 +1,6 @@
 mod cli;
 
-use std::time::Duration;
+use std::{env::args, time::Duration};
 
 use anyhow::Result;
 use identity::{
@@ -9,7 +9,7 @@ use identity::{
 };
 use node::{inner::NodeInner, protocol::InnerProtocolOpt};
 use tokio::sync::mpsc::Receiver;
-use tracing::info;
+use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
 use crate::cli::cli_loop;
@@ -24,11 +24,28 @@ async fn main() -> Result<()> {
         .compact()
         .init();
 
-    let mut listen_addr = Multiaddr::new("ip4/127.0.0.1/udp/0").unwrap();
-    // let mut listen_addr = Multiaddr::new("ip4/127.0.0.1/tcp/0").unwrap();
+    let flags = parse_flags(args().skip(1).collect::<Vec<_>>());
+
+    info!(
+        "Config: rlnc: {} ping-check: {} udp: {}",
+        flags.enable_rlnc, flags.ping_check, flags.enable_udp
+    );
+
+    let mut listen_addr = match flags.enable_udp {
+        true => Multiaddr::new("ip4/127.0.0.1/udp/0").unwrap(),
+        false => Multiaddr::new("ip4/127.0.0.1/tcp/0").unwrap(),
+    };
+
     let (host_mpsc_tx, _global_rx) = NodeInner::new(
         &mut listen_addr,
-        vec![InnerProtocolOpt::Floodsub, InnerProtocolOpt::Ping],
+        vec![
+            InnerProtocolOpt::Floodsub,
+            InnerProtocolOpt::Ping {
+                enable_rlnc: flags.enable_rlnc,
+            },
+        ],
+        None,
+        flags.ping_check,
     )
     .await
     .unwrap();
@@ -43,6 +60,34 @@ async fn main() -> Result<()> {
     cli_loop(host_mpsc_tx).await.unwrap();
 
     Ok(())
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+struct Flags {
+    enable_rlnc: bool,
+    ping_check: bool,
+    enable_udp: bool,
+}
+
+fn parse_flags(args: Vec<String>) -> Flags {
+    let mut flags = Flags::default();
+
+    for arg in args {
+        match arg.as_str() {
+            "--rlnc" => flags.enable_rlnc = true,
+            "--udp" => flags.enable_udp = true,
+            "--ping-check" => flags.ping_check = true,
+            other => warn!("Unknown flag ignored: {other}"),
+        }
+    }
+
+    // liveliness check only runs over udp transport
+    if flags.ping_check && !flags.enable_udp {
+        warn!("--ping-check requires --udp, ignoring");
+        flags.ping_check = false;
+    }
+
+    flags
 }
 
 async fn global_notification_receiver(mut global_event_rx: Receiver<Vec<u8>>) -> Result<()> {

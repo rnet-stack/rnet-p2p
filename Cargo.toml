@@ -4,6 +4,9 @@ members = [
     "examples/udp",
     "examples/ping",
     "examples/floodsub",
+    "examples/rlnc",
+
+    "crates/p2p",
 
     "crates/identity",
     "crates/transport",

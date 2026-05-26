@@ -5,6 +5,7 @@ use identity::traits::{
     protocols::{INodeFloodsubAPI, INodePingAPI},
 };
 use node::node::Node;
+use std::collections::HashMap;
 use std::{io::Write, sync::Arc, time::Duration};
 use tokio::io::{self, AsyncBufReadExt};
 
@@ -20,7 +21,8 @@ const COMMANDS: &[&str] = &[
     "leave <topic>              => unsubscribe to a new-topic",
     "publish <topic> <msg>      => publish a msg to a topic",
     "topics                     => list the subscribed topics",
-    "peers                      => list the connected peers",
+    "fpeers                     => list the connected Floodsub peers",
+    "gpeers                     => list the connected peers",
     "mesh                       => map of topics -> peer",
 ];
 
@@ -82,11 +84,30 @@ async fn handle_cmd(line: &str, host_tx: &Arc<Node>) -> Result<()> {
             host_tx.floodsub_publish(topic, msg).await.unwrap();
         }
 
-        "topics" => host_tx.floodsub_topics().await.unwrap(),
+        "topics" => {
+            let topics = host_tx.floodsub_topics().await.unwrap_or(vec![]);
+            println!("{:?}", topics);
+        }
 
-        "peers" => host_tx.floodsub_peers().await.unwrap(),
+        "fpeers" => {
+            let fpeers = host_tx.floodsub_peers().await.unwrap_or(vec![]);
+            fpeers.iter().for_each(|x| {
+                println!("{}", x);
+            });
+        }
 
-        "mesh" => host_tx.floodsub_mesh().await.unwrap(),
+        "gpeers" => {
+            let gpeers = host_tx.get_peers().await;
+            gpeers.iter().for_each(|peer| println!("{}", peer));
+        }
+
+        "mesh" => {
+            let mesh = host_tx.floodsub_mesh().await.unwrap_or(HashMap::new());
+            mesh.iter().for_each(|(topic, peers)| {
+                println!("- {}", topic);
+                peers.iter().for_each(|peer| println!("  - {}", peer));
+            });
+        }
 
         _ => println!("Unknown command"),
     }

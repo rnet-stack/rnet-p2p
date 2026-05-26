@@ -25,7 +25,7 @@ pub type AsyncHandler = Arc<
         + Sync,
 >;
 
-const INTERNAL: [u8; 16] = *b"internal-payload";
+pub const INTERNAL: [u8; 16] = *b"internal-payload";
 pub const MPLEX: &str = "rnet/mplex/0.0.1";
 
 pub struct MplexConn<T>
@@ -99,7 +99,7 @@ where
                 match is_initiator {
                     // TODO: Do somthing to merge these 2 match cases
                     false => {
-                        self._stream_counter += 1;
+                        self._stream_counter = stream_id;
                         let stream = MplexStream::new(
                             self.mpsc_tx.clone(),
                             muxed_stream_mpsc_rx,
@@ -109,6 +109,7 @@ where
                             self.handlers.clone(),
                             self.global_event_tx.clone(),
                         );
+
                         self.streams
                             .insert(self._stream_counter, muxed_stream_mpsc_tx);
 
@@ -147,32 +148,41 @@ where
                 };
             }
 
-            MuxedStreamFlag::Message => {
-                let muxed_stream_mpsc_tx = self
-                    .streams
-                    .get_mut(&stream_id)
-                    .expect("invalid stream-id")
-                    .clone();
-                muxed_stream_mpsc_tx.send(payload_extracted).await.unwrap();
+            MuxedStreamFlag::Message => match self.streams.get_mut(&stream_id) {
+                Some(muxed_stream_mpsc_tx) => {
+                    muxed_stream_mpsc_tx.send(payload_extracted).await.unwrap()
+                }
+
+                None => {
+                    warn!("stream-id: {} - not found", stream_id)
+                }
+            },
+
+            MuxedStreamFlag::CloseStream => {
+                self.streams.remove_entry(&stream_id);
+
+                warn!("stream-id: {} - got closed and removed", stream_id);
             }
 
-            MuxedStreamFlag::HandshakeRes => {
-                let muxed_stream_mpsc_tx = self
-                    .streams
-                    .get_mut(&stream_id)
-                    .expect("invalid stream-id")
-                    .clone();
-                muxed_stream_mpsc_tx.send(payload_extracted).await.unwrap();
-            }
+            MuxedStreamFlag::HandshakeRes => match self.streams.get_mut(&stream_id) {
+                Some(muxed_stream_mpsc_tx) => {
+                    muxed_stream_mpsc_tx.send(payload_extracted).await.unwrap()
+                }
 
-            MuxedStreamFlag::HandshakeReq => {
-                let muxed_stream_mpsc_tx = self
-                    .streams
-                    .get_mut(&stream_id)
-                    .expect("invalid stream-id")
-                    .clone();
-                muxed_stream_mpsc_tx.send(payload_extracted).await.unwrap();
-            }
+                None => {
+                    warn!("stream-id: {} - not found", stream_id)
+                }
+            },
+
+            MuxedStreamFlag::HandshakeReq => match self.streams.get_mut(&stream_id) {
+                Some(muxed_stream_mpsc_tx) => {
+                    muxed_stream_mpsc_tx.send(payload_extracted).await.unwrap()
+                }
+
+                None => {
+                    warn!("stream-id: {} - not found", stream_id)
+                }
+            },
 
             MuxedStreamFlag::Disconnected => {
                 // TODO: This case happens only for UDP, but can be done for TCP

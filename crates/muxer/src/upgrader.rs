@@ -29,6 +29,7 @@ impl MuxerUpgrader {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn update<T>(
         &self,
         stream: T,
@@ -36,13 +37,21 @@ impl MuxerUpgrader {
         remote_peer: PeerInfo,
         handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
         global_event_tx: Sender<Vec<u8>>,
+        ping_check_opt: bool,
     ) -> Result<(MuxedConn, Sender<Vec<u8>>)>
     where
         T: IRawConnection + Send + Sync + 'static,
     {
         Ok(self
             .transport
-            .handshake(stream, is_initiator, remote_peer, handlers, global_event_tx)
+            .handshake(
+                stream,
+                is_initiator,
+                remote_peer,
+                handlers,
+                global_event_tx,
+                ping_check_opt,
+            )
             .await
             .unwrap())
     }

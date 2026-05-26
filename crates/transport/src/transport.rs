@@ -6,7 +6,6 @@ use identity::{
     traits::{core::IReadWriteClose, transport::ITransport},
 };
 use tokio::net::TcpStream;
-use tracing::field::debug;
 
 use crate::{
     tcp::{conn::TcpConn, transport::TcpTransport},
@@ -58,7 +57,6 @@ impl Transport {
     }
 
     pub async fn accept(&self) -> Result<(Box<dyn IReadWriteClose>, SocketAddr)> {
-        debug("UDP-DEBUG: TRANSPORT-ACCEPT CALLED");
         match &self.inner {
             TransportInner::Tcp(tcp) => {
                 let (stream, socket_addr) = tcp.accept().await.unwrap();

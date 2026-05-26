@@ -17,7 +17,7 @@ use tokio::sync::{
     mpsc::{self, Receiver, Sender},
     Mutex,
 };
-use tracing::{debug, error, warn};
+use tracing::{error, warn};
 
 use crate::{
     cache::{cleanup_msg_cache, get_seqno, seqno_to_unix_tx},
@@ -78,7 +78,6 @@ impl IProtocolHandler for FloodSub {
                             self.handle_incoming(rpc, peer_id.clone()).await.unwrap();
                         }
                         Err(_) => {
-                            warn!("Floodsub dead peer");
                             break;
                         }
                     }
@@ -272,7 +271,7 @@ impl FloodSub {
         rpc.encode(&mut rpc_bytes).expect("Encoding failed");
 
         let floodsub_store = self.floodsub_store.lock().await;
-        for (_, stream) in floodsub_store.peers.iter() {
+        for stream in floodsub_store.peers.values() {
             stream.send(rpc_bytes.clone()).await.unwrap();
         }
 
@@ -421,7 +420,7 @@ impl FloodSub {
         let topic_id = sub_msg.topic_id.clone().unwrap();
 
         if sub_msg.subscribe() {
-            debug!("[{}]: subscribed [{}]", origin_id, topic_id);
+            // debug!("[{}]: subscribed [{}]", origin_id, topic_id);
 
             floodsub_store
                 .peer_topics
@@ -433,7 +432,7 @@ impl FloodSub {
                 })
                 .or_insert_with(|| vec![origin_id]);
         } else {
-            debug!("[{}]: unsubscribed [{}]", origin_id, topic_id);
+            // debug!("[{}]: unsubscribed [{}]", origin_id, topic_id);
             if let Some(peers) = floodsub_store.peer_topics.get_mut(&topic_id) {
                 peers.retain(|x| x != &origin_id);
             }
@@ -464,8 +463,6 @@ impl FloodSub {
                 floodsub_peer_mpsc_tx.send(buf).await.unwrap();
             }
         }
-
-        debug!("New peer connected for Floodsub: {}", peer_id);
 
         Ok(())
     }
