@@ -6,7 +6,7 @@ use floodsub::{
 use identity::{
     keys::rsa::RsaKeyPair,
     multiaddr::Multiaddr,
-    peer::PeerInfo,
+    peer::{PeerData, PeerInfo},
     traits::protocols::{INodeFloodsubAPI, INodePingAPI},
 };
 
@@ -33,6 +33,7 @@ pub struct Node {
     pub mpsc_tx: Sender<Vec<u8>>,
     pub handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
     pub global_event_tx: Sender<Vec<u8>>,
+    pub peerstore: Arc<Mutex<PeerData>>,
 
     // Protocols
     pub floodsub: Arc<Mutex<Option<Arc<FloodSub>>>>,
@@ -44,6 +45,7 @@ impl Node {
         mpsc_tx: Sender<Vec<u8>>,
         key_pair: RsaKeyPair,
         handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
+        peerstore: Arc<Mutex<PeerData>>,
         local_peer_info: PeerInfo,
         global_event_tx: Sender<Vec<u8>>,
     ) -> Self {
@@ -53,6 +55,7 @@ impl Node {
             mpsc_tx,
             handlers,
             global_event_tx,
+            peerstore,
 
             floodsub: Arc::new(Mutex::new(None)),
             ping: Arc::new(Mutex::new(None)),
@@ -96,6 +99,23 @@ impl INode for Node {
 impl Node {
     pub fn get_local(&self) -> PeerInfo {
         self.local_peer_info.clone()
+    }
+
+    pub async fn get_addr(&self, peer_id: &String) -> Multiaddr {
+        let peerstore = self.peerstore.lock().await;
+        let peerinfo = peerstore.peer_store.get(peer_id).expect("Peer not found");
+
+        Multiaddr::new(&peerinfo.listen_addr).unwrap()
+    }
+
+    pub async fn get_peers(&self) -> Vec<Multiaddr> {
+        let peerstore = self.peerstore.lock().await;
+
+        peerstore
+            .peer_store
+            .values()
+            .filter_map(|peerinfo| Multiaddr::new(&peerinfo.listen_addr).ok())
+            .collect()
     }
 
     pub async fn set_stream_handler(
@@ -224,45 +244,35 @@ impl INodeFloodsubAPI for Node {
         }
     }
 
-    async fn floodsub_topics(&self) -> Result<()> {
+    async fn floodsub_topics(&self) -> Option<Vec<String>> {
         match self.floodsub_is_running().await {
             false => warn!("Floodsub not running!!"),
             true => {
                 let floodsub_guard = self.floodsub.lock().await;
                 let floodsub = floodsub_guard.as_ref().unwrap();
 
-                match floodsub.get_subscribed_topics().await {
-                    Some(topics) => println!("{:?}", topics),
-                    None => println!("None"),
-                }
+                return floodsub.get_subscribed_topics().await;
             }
         }
 
-        Ok(())
+        None
     }
 
-    async fn floodsub_peers(&self) -> Result<()> {
+    async fn floodsub_peers(&self) -> Option<Vec<String>> {
         match self.floodsub_is_running().await {
             false => warn!("Floodsub not running!!"),
             true => {
                 let floodsub_guard = self.floodsub.lock().await;
                 let floodsub = floodsub_guard.as_ref().unwrap();
 
-                match floodsub.get_connected_peers().await {
-                    Some(peers) => {
-                        for peer in peers {
-                            println!("{}", peer);
-                        }
-                    }
-                    None => println!("None"),
-                }
+                return floodsub.get_connected_peers().await;
             }
         }
 
-        Ok(())
+        None
     }
 
-    async fn floodsub_mesh(&self) -> Result<()> {
+    async fn floodsub_mesh(&self) -> Option<HashMap<String, Vec<String>>> {
         match self.floodsub_is_running().await {
             false => warn!("Floodsub not running!!"),
             true => {
@@ -270,19 +280,23 @@ impl INodeFloodsubAPI for Node {
                 let floodsub = floodsub_guard.as_ref().unwrap();
 
                 let mesh = floodsub.get_floodsub_mesh().await;
-                match mesh.is_empty() {
-                    true => println!("None"),
+                let mut mapped_mesh = HashMap::new();
 
-                    false => {
-                        for (topic, peers) in mesh {
-                            println!("[{}] => {:?}", topic, peers);
-                        }
+                for (topic, peers) in mesh {
+                    let mut peer_addrs = Vec::new();
+
+                    for peer in peers {
+                        peer_addrs.push(self.get_addr(&peer).await.to_string());
                     }
+
+                    mapped_mesh.insert(topic, peer_addrs);
                 }
+
+                return Some(mapped_mesh);
             }
         }
 
-        Ok(())
+        None
     }
 }
 

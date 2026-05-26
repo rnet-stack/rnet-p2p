@@ -105,6 +105,7 @@ impl NodeInner {
             mpsc_tx,
             keypair.clone(),
             handlers.clone(),
+            peerstore.clone(),
             local_peer_info.clone(),
             global_event_tx.clone(),
         ));

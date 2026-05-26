@@ -1,0 +1,17 @@
+[package]
+name = "rnet-p2p"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+identity = { path = "../identity" }
+transport = { path = "../transport" }
+schema = { path = "../schema" }
+security = { path = "../security" }
+muxer = { path = "../muxer" }
+floodsub = { path = "../protocols/floodsub" }
+ping = { path = "../protocols/ping" }
+protocols = { path = "../protocols" }
+multistream = { path = "../multistream" }
+node = { path = "../node" }
+swarm = { path = "../swarm" }

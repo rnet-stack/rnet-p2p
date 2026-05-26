@@ -7,7 +7,7 @@ use crate::{
 };
 use anyhow::Result;
 use identity::{
-    multiaddr::{Multiaddr, Protocol},
+    multiaddr::Multiaddr,
     peer::{PeerData, PeerInfo},
     traits::{
         core::{IMultistream, IProtocolHandler, IRawConnection, IReadWriteClose, ISwarm},
@@ -85,7 +85,6 @@ impl SwarmInner {
         listen_addr
             .replace_value_for_protocol(transport_opt, parts[1])
             .unwrap();
-        listen_addr.push_proto(Protocol::P2P(peer_id.clone()));
 
         // Create the peerstore
         let local_peer_info = PeerInfo {

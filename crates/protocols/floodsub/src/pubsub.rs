@@ -78,7 +78,6 @@ impl IProtocolHandler for FloodSub {
                             self.handle_incoming(rpc, peer_id.clone()).await.unwrap();
                         }
                         Err(_) => {
-                            warn!("Floodsub dead peer");
                             break;
                         }
                     }
@@ -464,8 +463,6 @@ impl FloodSub {
                 floodsub_peer_mpsc_tx.send(buf).await.unwrap();
             }
         }
-
-        debug!("New peer connected for Floodsub: {}", peer_id);
 
         Ok(())
     }
