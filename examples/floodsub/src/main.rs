@@ -29,6 +29,7 @@ async fn main() -> Result<()> {
     let (host_mpsc_tx, _global_rx) = NodeInner::new(
         &mut listen_addr,
         vec![InnerProtocolOpt::Floodsub, InnerProtocolOpt::Ping],
+        None,
     )
     .await
     .unwrap();

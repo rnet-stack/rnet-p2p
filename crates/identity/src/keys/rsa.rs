@@ -3,6 +3,7 @@ use anyhow::Result;
 use base58::ToBase58;
 use rand::thread_rng;
 use rsa::pkcs1v15::Signature;
+use rsa::pkcs8::EncodePrivateKey;
 use rsa::signature::{Keypair, SignerMut, Verifier};
 use rsa::{
     pkcs1::{EncodeRsaPrivateKey, EncodeRsaPublicKey},
@@ -32,6 +33,7 @@ impl RsaKeyPair {
         let mut rng = thread_rng();
         let private_key =
             RsaPrivateKey::new(&mut rng, 2048).expect("Failed to crete RSA private key");
+
         let public_key = RsaPublicKey::from(&private_key);
         let signing_key = SigningKey::<Sha256>::new(private_key.clone());
 
@@ -65,6 +67,27 @@ impl RsaKeyPair {
             .private_key
             .to_pkcs1_pem(Default::default())?
             .to_string())
+    }
+
+    pub fn to_hex(&self) -> Result<String> {
+        let der = self.private_key.to_pkcs8_der().unwrap();
+        Ok(hex::encode(der.as_bytes()))
+    }
+
+    pub fn from_hex(hex: String) -> Result<Self> {
+        let bytes = hex::decode(hex).unwrap();
+        let pvt_key = RsaPrivateKey::from_pkcs8_der(&bytes).unwrap();
+        let pub_key = RsaPublicKey::from(&pvt_key);
+        let signing_key = SigningKey::<Sha256>::new(pvt_key.clone());
+
+        Ok(Self {
+            private_key: pvt_key,
+            public_key: pub_key,
+            signer: Signer {
+                signing_key: signing_key.clone(),
+                verifying_key: signing_key.verifying_key(),
+            },
+        })
     }
 
     pub fn peer_id(&self) -> String {

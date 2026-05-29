@@ -65,6 +65,7 @@ impl NodeInner {
     pub async fn new(
         listen_addr: &mut Multiaddr,
         protocol_opt: Vec<InnerProtocolOpt>,
+        key_pair: Option<String>,
     ) -> Result<(Arc<Node>, Receiver<Vec<u8>>)> {
         // generate rsa-keypair
         // handlers
@@ -72,8 +73,14 @@ impl NodeInner {
         // create/initiate swarm
 
         // keypair/handlers generate
-        debug!("Generating RSA keypair");
-        let keypair = RsaKeyPair::generate().unwrap();
+        let keypair = match key_pair {
+            Some(hex) => RsaKeyPair::from_hex(hex).unwrap(),
+            None => {
+                debug!("Generating RSA keypair");
+                RsaKeyPair::generate().unwrap()
+            }
+        };
+
         let peer_id = keypair.peer_id();
         listen_addr.push_proto(Protocol::P2P(peer_id.clone()));
 
