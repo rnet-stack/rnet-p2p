@@ -221,9 +221,16 @@ impl SwarmInner {
 
     async fn new_stream(&self, maddr: &Multiaddr, protocols: Vec<String>) {
         let peer_id = maddr.value_for_protocol("p2p").unwrap();
-        if !self.is_peer_connected(&peer_id).await {
-            warn!("Making a connection first: {}", peer_id);
-            self.connect(maddr).await.unwrap();
+
+        match self.is_peer_connected(&peer_id).await {
+            true => {
+                warn!("Peer already connected: {}", peer_id);
+                return;
+            }
+            false => {
+                warn!("Making a connection first: {peer_id}");
+                self.connect(maddr).await.unwrap();
+            }
         }
 
         // fetch the muxed_conn instance
