@@ -16,7 +16,7 @@ use tokio::sync::{mpsc::Sender, Mutex};
 
 use anyhow::{Error, Result};
 use identity::traits::core::INode;
-use std::{collections::HashMap, result::Result::Ok, sync::Arc};
+use std::{collections::HashMap, result::Result::Ok, sync::Arc, time::Duration};
 use tracing::{info, warn};
 
 use crate::{
@@ -227,6 +227,9 @@ impl INodeFloodsubAPI for Node {
                 floodsub.floodsub_mpsc_tx.send(frame).await.unwrap();
             }
         }
+
+        // Some jitter after each publish
+        tokio::time::sleep(Duration::from_millis(400)).await;
 
         Ok(())
     }
