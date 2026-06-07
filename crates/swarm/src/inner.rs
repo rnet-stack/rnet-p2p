@@ -225,7 +225,6 @@ impl SwarmInner {
         match self.is_peer_connected(&peer_id).await {
             true => {
                 warn!("Peer already connected: {}", peer_id);
-                return;
             }
             false => {
                 warn!("Making a connection first: {peer_id}");
