@@ -81,6 +81,7 @@ impl MuxedConn {
             _ => Err(Error::msg("protocol not found")),
         };
 
+        // TODO: this is supposed to happen only for UDP
         tokio::spawn(async move {
             ping_check(ping_check_rx, muxed_mpsc_tx, is_initiator, remote_peer)
                 .await
