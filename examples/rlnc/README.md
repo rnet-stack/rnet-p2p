@@ -6,7 +6,7 @@ P2 = [b b b b]
 P3 = [c c c c]
 ```
 
-instra of sending them directly, we send random mixtures:
+instead of sending them directly, we send random mixtures:
 ```
 E1 = 2·P1 + 5·P2 + 7·P3
 E2 = 1·P1 + 0·P2 + 3·P3

@@ -8,5 +8,5 @@ pub enum InnerProtocol {
 
 pub enum InnerProtocolOpt {
     Floodsub,
-    Ping,
+    Ping { enable_rlnc: bool },
 }

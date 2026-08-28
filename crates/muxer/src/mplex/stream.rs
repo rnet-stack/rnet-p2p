@@ -10,7 +10,10 @@ use tokio::sync::{
 };
 
 use crate::{
-    mplex::headers::{build_frame, MuxedStreamFlag},
+    mplex::{
+        conn::INTERNAL,
+        headers::{build_frame, MuxedStreamFlag},
+    },
     upgrader::ProtocolHanldler,
 };
 
@@ -64,6 +67,15 @@ impl IMuxedStream for MplexStream {
             Some(payload) => return Ok(payload),
             None => return Err(Error::msg("mpsc receiver down")),
         }
+    }
+
+    async fn close(&self) -> Result<()> {
+        let mut frame = build_frame(self.stream_id, MuxedStreamFlag::CloseStream, &vec![]);
+        frame.splice(0..0, INTERNAL);
+
+        self.muxed_conn_mpsc_tx.send(frame).await?;
+
+        Ok(())
     }
 
     async fn handle_conn(mut self, proto: Option<Vec<u8>>) -> Result<()> {

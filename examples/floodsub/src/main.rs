@@ -28,7 +28,10 @@ async fn main() -> Result<()> {
     // let mut listen_addr = Multiaddr::new("ip4/127.0.0.1/tcp/0").unwrap();
     let (host_mpsc_tx, _global_rx) = NodeInner::new(
         &mut listen_addr,
-        vec![InnerProtocolOpt::Floodsub, InnerProtocolOpt::Ping],
+        vec![
+            InnerProtocolOpt::Floodsub,
+            InnerProtocolOpt::Ping { enable_rlnc: false },
+        ],
         None,
     )
     .await

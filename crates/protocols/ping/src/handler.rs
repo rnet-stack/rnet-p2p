@@ -9,23 +9,31 @@ use identity::{
     events::{GlobalEvent, PingEvent},
     traits::{core::IProtocolHandler, muxer::IMuxedStream},
 };
+use rand::{distr::Alphanumeric, RngExt};
 use tokio::{
     sync::{mpsc::Sender, Mutex},
     time::timeout,
 };
 use tracing::{debug, error, warn};
 
-const PING_LENGTH: usize = 32;
+use crate::rlnc::engine::PingRLNC;
+
+pub const PING_LENGTH: usize = 32;
+const PAYLOAD_ID_LEN: usize = 16;
 
 pub struct Ping {
     pub count: Arc<Mutex<u32>>,
+    pub enable_rlnc: bool,
+    pub rlnc_engine: Arc<PingRLNC>,
     global_event_tx: Sender<Vec<u8>>,
 }
 
 impl Ping {
-    pub fn new(count: Option<u32>, global_event_tx: Sender<Vec<u8>>) -> Self {
+    pub fn new(count: Option<u32>, global_event_tx: Sender<Vec<u8>>, enable_rlnc: bool) -> Self {
         Ping {
             count: Arc::new(Mutex::new(count.unwrap_or(5))),
+            enable_rlnc,
+            rlnc_engine: PingRLNC::new(),
             global_event_tx,
         }
     }
@@ -36,6 +44,17 @@ impl Ping {
     ) -> Result<u128> {
         let payload = vec![0x01; PING_LENGTH];
         let timeout_duration = Duration::from_secs(2);
+
+        // Give the stream to RLNC engine, and it will carry out this ping-exchange
+        if self.enable_rlnc {
+            let random_id: String = rand::rng()
+                .sample_iter(&Alphanumeric)
+                .take(PAYLOAD_ID_LEN)
+                .map(char::from)
+                .collect();
+
+            return self.rlnc_engine.ping(stream, random_id).await;
+        }
 
         let rtt = match stream.is_initiator() {
             true => {
@@ -220,6 +239,7 @@ impl IProtocolHandler for Ping {
             false => self.handle_ping(&mut stream, None).await.unwrap(),
         };
 
+        stream.close().await.unwrap();
         Ok(())
     }
 }

@@ -156,7 +156,7 @@ impl Node {
                 }
             }
 
-            InnerProtocolOpt::Ping => {
+            InnerProtocolOpt::Ping { enable_rlnc } => {
                 let mut ping_guard = self.ping.lock().await;
 
                 match &*ping_guard {
@@ -164,7 +164,8 @@ impl Node {
                         warn!("Ping already running!!");
                     }
                     None => {
-                        let ping = Arc::new(Ping::new(None, self.global_event_tx.clone()));
+                        let ping =
+                            Arc::new(Ping::new(None, self.global_event_tx.clone(), enable_rlnc));
                         self.set_stream_handler(PING, Box::new(ping.clone()))
                             .await
                             .unwrap();

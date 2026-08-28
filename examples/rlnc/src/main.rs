@@ -90,7 +90,7 @@ pub fn encode(packets: &Vec<Vec<u8>>) -> EncodedPayload {
 
 fn main() {
     let payload = b"123rlnc___rocks!!".to_vec();
-    let packets = split(payload.clone(), 5);
+    let packets = split(payload.clone(), 4);
 
     println!(
         "payload: {:?},\nbytes: {:?}",

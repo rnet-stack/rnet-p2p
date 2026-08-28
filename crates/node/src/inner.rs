@@ -195,7 +195,7 @@ impl NodeInner {
                         .await
                         .unwrap();
                 }
-                InnerProtocolOpt::Ping => {
+                InnerProtocolOpt::Ping { .. } => {
                     self.node_mpsc_tx
                         .initiate_protocol(local_peer, opt)
                         .await
