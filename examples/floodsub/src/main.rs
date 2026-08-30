@@ -100,16 +100,16 @@ fn parse_flags(args: Vec<String>) -> Flags {
 
 /// Interactive mode (`-- -i`): asks for each flag one by one, Enter means yes.
 fn prompt_flags() -> Flags {
-    let mut flags = Flags::default();
-
-    flags.enable_rlnc = prompt_bool("Sharding RLNC", true);
-    flags.enable_udp = prompt_bool("Transport UDP", true);
+    let enable_rlnc = prompt_bool("Sharding RLNC", true);
+    let enable_udp = prompt_bool("Transport UDP", true);
     // liveliness check only runs over udp transport
-    if flags.enable_udp {
-        flags.ping_check = prompt_bool("UDP liveliness check", true);
-    }
+    let ping_check = enable_udp && prompt_bool("UDP liveliness check", true);
 
-    flags
+    Flags {
+        enable_rlnc,
+        ping_check,
+        enable_udp,
+    }
 }
 
 fn prompt_bool(name: &str, default: bool) -> bool {
