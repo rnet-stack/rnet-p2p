@@ -147,9 +147,9 @@ impl PingRLNC {
         Ok(rtt)
     }
 
-    fn formulate(&self, payload: &Vec<u8>, id: &String) -> Result<Vec<EncodedPayload>> {
-        let packets = EncodedPayload::split(&payload);
-        let encoded_set = EncodedPayload::generate_encoded_set(&packets, id.clone());
+    fn formulate(&self, payload: &[u8], id: &str) -> Result<Vec<EncodedPayload>> {
+        let packets = EncodedPayload::split(payload);
+        let encoded_set = EncodedPayload::generate_encoded_set(&packets, id.to_owned());
 
         Ok(encoded_set)
     }

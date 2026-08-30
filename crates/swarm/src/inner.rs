@@ -41,6 +41,8 @@ pub struct SwarmInner {
     handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
     pub swarm_mpsc_tx: Arc<dyn ISwarm + Send + Sync + 'static>,
     pub global_event_tx: Sender<Vec<u8>>,
+    /// liveliness check over udp transport
+    pub ping_check_opt: bool,
 }
 
 // get_peer_id
@@ -64,6 +66,7 @@ impl SwarmInner {
         peer_id: String,
         handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
         global_event_tx: Sender<Vec<u8>>,
+        ping_check_opt: bool,
     ) -> Result<(Arc<Swarm>, Arc<Mutex<PeerData>>, PeerInfo)> {
         // create transport
         // update the actual listen ip
@@ -112,6 +115,7 @@ impl SwarmInner {
             handlers,
             swarm_mpsc_tx: swarm_mpsc_tx.clone(),
             global_event_tx,
+            ping_check_opt,
         });
 
         tokio::spawn(async move {
@@ -275,6 +279,7 @@ impl SwarmInner {
                 remote_peer,
                 self.handlers.clone(),
                 self.global_event_tx.clone(),
+                self.ping_check_opt,
             )
             .await
     }

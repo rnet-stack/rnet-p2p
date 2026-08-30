@@ -35,6 +35,7 @@ impl MuxerTransport {
         MuxerTransport { muxer_opts }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn mux_conn<T>(
         &self,
         stream: T,
@@ -42,16 +43,25 @@ impl MuxerTransport {
         remote_peer: PeerInfo,
         handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
         global_event_tx: Sender<Vec<u8>>,
+        ping_check_opt: bool,
     ) -> Result<(MuxedConn, Sender<Vec<u8>>)>
     where
         T: IRawConnection + Send + Sync + 'static,
     {
         Ok(self
-            .handshake(stream, is_initiator, remote_peer, handlers, global_event_tx)
+            .handshake(
+                stream,
+                is_initiator,
+                remote_peer,
+                handlers,
+                global_event_tx,
+                ping_check_opt,
+            )
             .await
             .unwrap())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn handshake<T>(
         &self,
         mut stream: T,
@@ -59,6 +69,7 @@ impl MuxerTransport {
         remote_peer: PeerInfo,
         handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
         global_event_tx: Sender<Vec<u8>>,
+        ping_check_opt: bool,
     ) -> Result<(MuxedConn, Sender<Vec<u8>>)>
     where
         T: IRawConnection + Send + Sync + 'static,
@@ -85,6 +96,7 @@ impl MuxerTransport {
             muxed_mpsc_rx,
             muxed_mpsc_tx.clone(),
             global_event_tx,
+            ping_check_opt,
         )
         .await
         .unwrap();

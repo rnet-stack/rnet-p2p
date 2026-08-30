@@ -13,7 +13,7 @@ pub struct EncodedPayload {
 }
 
 impl EncodedPayload {
-    pub fn split(payload: &Vec<u8>) -> Vec<Vec<u8>> {
+    pub fn split(payload: &[u8]) -> Vec<Vec<u8>> {
         let mut packets = Vec::new();
 
         for chunk in payload.chunks(DEFAULT_CHUNK_SIZE as usize) {
@@ -28,7 +28,7 @@ impl EncodedPayload {
         packets
     }
 
-    pub fn generate_encoded_set(packets: &Vec<Vec<u8>>, id: String) -> Vec<EncodedPayload> {
+    pub fn generate_encoded_set(packets: &[Vec<u8>], id: String) -> Vec<EncodedPayload> {
         let mut encoded = Vec::new();
 
         for _ in 0..DEFAULT_ENCODE_SET_LEN {
@@ -37,7 +37,7 @@ impl EncodedPayload {
         encoded
     }
 
-    fn encode(packets: &Vec<Vec<u8>>, id: String) -> EncodedPayload {
+    fn encode(packets: &[Vec<u8>], id: String) -> EncodedPayload {
         let mut rng = rand::rng();
 
         let n = packets.len();
@@ -75,7 +75,7 @@ impl EncodedPayload {
         (matrix, data)
     }
 
-    pub fn gaussian_elimination(matrix: &mut Vec<Vec<u8>>, data: &mut Vec<Vec<u8>>) {
+    pub fn gaussian_elimination(matrix: &mut [Vec<u8>], data: &mut [Vec<u8>]) {
         let n = matrix.len();
 
         for i in 0..n {
@@ -95,8 +95,8 @@ impl EncodedPayload {
             // normalize pivot row
             let inv = gf_inv(matrix[i][i]); // w'll define this next
 
-            for j in 0..n {
-                matrix[i][j] = gf_mul(matrix[i][j], inv);
+            for val in matrix[i].iter_mut().take(n) {
+                *val = gf_mul(*val, inv);
             }
 
             for j in 0..data[i].len() {
@@ -104,13 +104,14 @@ impl EncodedPayload {
             }
 
             // eliminate below
+            let pivot_row = matrix[i].clone();
+
             for k in 0..n {
                 if k != i {
                     let factor = matrix[k][i];
 
-                    for j in 0..n {
-                        let val = gf_mul(factor, matrix[i][j]);
-                        matrix[k][j] ^= val;
+                    for (val, &pivot) in matrix[k].iter_mut().zip(pivot_row.iter()).take(n) {
+                        *val ^= gf_mul(factor, pivot);
                     }
 
                     for j in 0..data[k].len() {
@@ -134,7 +135,7 @@ impl EncodedPayload {
     }
 
     pub fn as_bytes(&self) -> Vec<u8> {
-        return bincode::serialize(&self).unwrap();
+        bincode::serialize(&self).unwrap()
     }
 
     pub fn from_bytes(frame: Vec<u8>) -> Result<EncodedPayload> {

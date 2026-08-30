@@ -66,6 +66,7 @@ impl NodeInner {
         listen_addr: &mut Multiaddr,
         protocol_opt: Vec<InnerProtocolOpt>,
         key_pair: Option<String>,
+        ping_check_opt: bool,
     ) -> Result<(Arc<Node>, Receiver<Vec<u8>>)> {
         // generate rsa-keypair
         // handlers
@@ -103,6 +104,7 @@ impl NodeInner {
             peer_id.clone(),
             handlers.clone(),
             global_event_tx.clone(),
+            ping_check_opt,
         )
         .await
         .unwrap();

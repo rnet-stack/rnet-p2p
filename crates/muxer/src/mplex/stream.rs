@@ -70,7 +70,7 @@ impl IMuxedStream for MplexStream {
     }
 
     async fn close(&self) -> Result<()> {
-        let mut frame = build_frame(self.stream_id, MuxedStreamFlag::CloseStream, &vec![]);
+        let mut frame = build_frame(self.stream_id, MuxedStreamFlag::CloseStream, &[]);
         frame.splice(0..0, INTERNAL);
 
         self.muxed_conn_mpsc_tx.send(frame).await?;

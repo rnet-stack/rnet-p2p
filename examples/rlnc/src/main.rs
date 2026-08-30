@@ -57,7 +57,7 @@ pub fn split(payload: Vec<u8>, chunk_size: usize) -> Vec<Vec<u8>> {
     packets
 }
 
-pub fn generate_encoded_payload(packets: &Vec<Vec<u8>>, count: u8) -> Vec<EncodedPayload> {
+pub fn generate_encoded_payload(packets: &[Vec<u8>], count: u8) -> Vec<EncodedPayload> {
     let mut encoded = Vec::new();
 
     for _ in 0..count {
@@ -66,7 +66,7 @@ pub fn generate_encoded_payload(packets: &Vec<Vec<u8>>, count: u8) -> Vec<Encode
     encoded
 }
 
-pub fn encode(packets: &Vec<Vec<u8>>) -> EncodedPayload {
+pub fn encode(packets: &[Vec<u8>]) -> EncodedPayload {
     let mut rng = rand::rng();
 
     let n = packets.len();
@@ -144,7 +144,7 @@ pub fn build_linear_system(packets: Vec<EncodedPayload>) -> (Vec<Vec<u8>>, Vec<V
     (matrix, data)
 }
 
-fn gaussian_elimination(matrix: &mut Vec<Vec<u8>>, data: &mut Vec<Vec<u8>>) {
+fn gaussian_elimination(matrix: &mut [Vec<u8>], data: &mut [Vec<u8>]) {
     let n = matrix.len();
 
     for i in 0..n {
@@ -164,8 +164,8 @@ fn gaussian_elimination(matrix: &mut Vec<Vec<u8>>, data: &mut Vec<Vec<u8>>) {
         // normalize pivot row
         let inv = gf_inv(matrix[i][i]); // we’ll define this next
 
-        for j in 0..n {
-            matrix[i][j] = gf_mul(matrix[i][j], inv);
+        for val in matrix[i].iter_mut().take(n) {
+            *val = gf_mul(*val, inv);
         }
 
         for j in 0..data[i].len() {
@@ -173,13 +173,14 @@ fn gaussian_elimination(matrix: &mut Vec<Vec<u8>>, data: &mut Vec<Vec<u8>>) {
         }
 
         // eliminate below
+        let pivot_row = matrix[i].clone();
+
         for k in 0..n {
             if k != i {
                 let factor = matrix[k][i];
 
-                for j in 0..n {
-                    let val = gf_mul(factor, matrix[i][j]);
-                    matrix[k][j] ^= val;
+                for (val, &pivot) in matrix[k].iter_mut().zip(pivot_row.iter()).take(n) {
+                    *val ^= gf_mul(factor, pivot);
                 }
 
                 for j in 0..data[k].len() {

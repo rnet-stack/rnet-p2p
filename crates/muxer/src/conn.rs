@@ -52,6 +52,7 @@ impl MuxedConn {
         muxed_mpsc_rx: Receiver<Vec<u8>>,
         muxed_mpsc_tx: Sender<Vec<u8>>,
         global_event_tx: Sender<Vec<u8>>,
+        ping_check_opt: bool,
     ) -> Result<Self>
     where
         W: IRawConnection + Send + Sync + 'static,
@@ -83,13 +84,13 @@ impl MuxedConn {
 
         let remote_addr = Multiaddr::new(&remote_peer.listen_addr).unwrap();
 
-        // if remote_addr.value_for_protocol("udp").is_some() {
-        //     tokio::spawn(async move {
-        //         ping_check(ping_check_rx, muxed_mpsc_tx, is_initiator, remote_peer)
-        //             .await
-        //             .unwrap();
-        //     });
-        // }
+        if ping_check_opt && remote_addr.value_for_protocol("udp").is_some() {
+            tokio::spawn(async move {
+                ping_check(ping_check_rx, muxed_mpsc_tx, is_initiator, remote_peer)
+                    .await
+                    .unwrap();
+            });
+        }
 
         muxed_conn
     }
