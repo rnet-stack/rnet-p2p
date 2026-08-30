@@ -1,6 +1,10 @@
 mod cli;
 
-use std::{env::args, time::Duration};
+use std::{
+    env::args,
+    io::{self, BufRead, Write},
+    time::Duration,
+};
 
 use anyhow::Result;
 use identity::{
@@ -24,7 +28,11 @@ async fn main() -> Result<()> {
         .compact()
         .init();
 
-    let flags = parse_flags(args().skip(1).collect::<Vec<_>>());
+    let args = args().skip(1).collect::<Vec<_>>();
+    let flags = match args.iter().any(|a| a == "-i" || a == "--interactive") {
+        true => prompt_flags(),
+        false => parse_flags(args),
+    };
 
     info!(
         "Config: rlnc: {} ping-check: {} udp: {}",
@@ -56,7 +64,7 @@ async fn main() -> Result<()> {
 
     tokio::time::sleep(Duration::from_millis(200)).await;
 
-    info!("Run in new terminal: \ncargo run --bin floodsub --release");
+    info!("Run in new terminal: \ncargo run --bin floodsub --release (add `-- -i` to pick flags interactively)");
     cli_loop(host_mpsc_tx).await.unwrap();
 
     Ok(())
@@ -88,6 +96,39 @@ fn parse_flags(args: Vec<String>) -> Flags {
     }
 
     flags
+}
+
+/// Interactive mode (`-- -i`): asks for each flag one by one, Enter means yes.
+fn prompt_flags() -> Flags {
+    let enable_rlnc = prompt_bool("Sharding RLNC", true);
+    let enable_udp = prompt_bool("Transport UDP", true);
+    // liveliness check only runs over udp transport
+    let ping_check = enable_udp && prompt_bool("UDP liveliness check", true);
+
+    Flags {
+        enable_rlnc,
+        ping_check,
+        enable_udp,
+    }
+}
+
+fn prompt_bool(name: &str, default: bool) -> bool {
+    let hint = if default { "Y/n" } else { "y/N" };
+    print!("{name} ({hint}): ");
+    io::stdout().flush().ok();
+
+    let mut line = String::new();
+    io::stdin().lock().read_line(&mut line).ok();
+
+    match line.trim().to_ascii_lowercase().as_str() {
+        "" => default,
+        "y" | "yes" => true,
+        "n" | "no" => false,
+        other => {
+            warn!("Unrecognized input '{other}', using default");
+            default
+        }
+    }
 }
 
 async fn global_notification_receiver(mut global_event_rx: Receiver<Vec<u8>>) -> Result<()> {
