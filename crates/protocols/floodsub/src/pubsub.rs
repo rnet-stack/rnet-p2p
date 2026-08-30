@@ -271,7 +271,7 @@ impl FloodSub {
         rpc.encode(&mut rpc_bytes).expect("Encoding failed");
 
         let floodsub_store = self.floodsub_store.lock().await;
-        for (_, stream) in floodsub_store.peers.iter() {
+        for stream in floodsub_store.peers.values() {
             stream.send(rpc_bytes.clone()).await.unwrap();
         }
 
