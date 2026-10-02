@@ -1,0 +1,20 @@
+[package]
+name = "raptor"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "raptor"
+path = "src/main.rs"
+
+[dependencies]
+tokio = {workspace = true}
+anyhow = {workspace = true}
+async-trait = {workspace = true}
+tracing = {workspace = true}
+tracing-subscriber = {workspace = true}
+
+
+raptorq = "2.0.1"
+rand = "0.10.3"
+

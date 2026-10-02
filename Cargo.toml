@@ -5,6 +5,7 @@ members = [
     "examples/ping",
     "examples/floodsub",
     "examples/rlnc",
+    "examples/raptor",
 
     "crates/p2p",
 
