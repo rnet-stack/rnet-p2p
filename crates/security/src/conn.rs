@@ -26,14 +26,17 @@ impl ISecuredConn for SecureConn {
         // pass on the vec<u8>
 
         let bytes = self.stream.recv_msg().await?;
-        if bytes.len() < NONCE_LEN {
-            return Err(Error::msg("message too short"));
-        }
+        
+        // if bytes.len() < NONCE_LEN {
+        //     return Err(Error::msg("message too short"));
+        // }
 
-        let (nonce_bytes, ciphertext) = bytes.split_at(NONCE_LEN);
+        // let (nonce_bytes, ciphertext) = bytes.split_at(NONCE_LEN);
 
-        let plaintext = self.cipher.idecrypt(nonce_bytes, ciphertext).unwrap();
-        Ok(plaintext)
+        // let plaintext = self.cipher.idecrypt(nonce_bytes, ciphertext).unwrap();
+        // Ok(plaintext)
+
+        Ok(bytes)
     }
 
     async fn write(&mut self, msg: &Vec<u8>) -> Result<()> {
@@ -42,14 +45,16 @@ impl ISecuredConn for SecureConn {
         // Insert the nonce - 12 bytes in front
         // send off the paylaod
 
-        let (ciphertext, nonce) = self.cipher.iencrypt(msg).unwrap();
+        // let (ciphertext, nonce) = self.cipher.iencrypt(msg).unwrap();
 
-        let mut payload = Vec::with_capacity(nonce.len() + ciphertext.len());
+        // let mut payload = Vec::with_capacity(nonce.len() + ciphertext.len());
 
-        payload.extend_from_slice(nonce.as_slice()); // 12 bytes
-        payload.extend_from_slice(&ciphertext);
+        // payload.extend_from_slice(nonce.as_slice()); // 12 bytes
+        // payload.extend_from_slice(&ciphertext);
 
-        Ok(self.stream.send_bytes(&payload).await?)
+        // Ok(self.stream.send_bytes(&payload).await?)
+
+        Ok(self.stream.send_bytes(msg).await?)
     }
 
     async fn close(&mut self) -> Result<()> {
