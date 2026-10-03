@@ -1,0 +1,16 @@
+[package]
+name = "afc"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+prost = { workspace = true }
+bincode = {workspace = true}
+serde = { workspace = true }
+
+schema = { path = "../../schema" }
+identity = { path = "../../identity" }

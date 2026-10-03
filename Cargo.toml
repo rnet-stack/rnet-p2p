@@ -17,6 +17,7 @@ members = [
     "crates/protocols",
     "crates/protocols/ping",
     "crates/protocols/floodsub",
+    "crates/protocols/afc",
     "crates/node",
     "crates/swarm",
     "crates/multistream"
