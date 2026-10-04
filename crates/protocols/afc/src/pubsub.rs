@@ -14,6 +14,7 @@ use crate::{msg_schema::PubsubMsg, store::PubsubStore};
 
 pub type TopicID = String;
 pub type PeerID = String;
+pub type MessageID = [u8; 32];
 
 pub enum PubsubCommands {
     NewPeer(Sender<Vec<u8>>, PeerID),

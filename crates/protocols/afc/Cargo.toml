@@ -9,8 +9,10 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 tracing = { workspace = true }
 prost = { workspace = true }
-bincode = {workspace = true}
+bincode = { workspace = true }
 serde = { workspace = true }
+raptorq = { workspace = true }
+
 
 schema = { path = "../../schema" }
 identity = { path = "../../identity" }
